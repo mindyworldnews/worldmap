@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>世界地圖・國家標註</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1b2e;
+      --panel: #111f35;
+      --border: #1e3455;
+      --text: #c8d8ec;
+      --muted: #5a7a9a;
+      --accent: #4a9eda;
+      --land: #1a2f4a;
+      --land-stroke: rgba(255,255,255,0.12);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      flex-shrink: 0;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    #input-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    #query-input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #query-input:focus { border-color: var(--accent); }
+    #query-input::placeholder { color: var(--muted); }
+
+    .btn {
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.2s, opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary { background: #1e5c8a; color: #e0eaf8; }
+    .btn-primary:hover:not(:disabled) { background: #2570a8; }
+    .btn-ghost { background: var(--border); color: var(--muted); }
+    .btn-ghost:hover { background: #243a56; color: var(--text); }
+    .btn-green { background: #1a5e40; color: #d0f0e0; }
+    .btn-green:hover:not(:disabled) { background: #207050; }
+    .btn-orange { background: #5e3a1a; color: #f0d8c0; }
+    .btn-orange:hover:not(:disabled) { background: #7a4a20; }
+    .btn-upload { background: #2a2a4a; color: #aaaacc; font-size: 12px; }
+    .btn-upload:hover:not(:disabled) { background: #3a3a5e; color: #ccccee; }
+
+    #preview-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      min-height: 22px;
+      align-items: center;
+    }
+
+    .preview-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .preview-chip .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    #status-msg {
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: 4px;
+    }
+    #status-msg.cache { color: #6dbb8a; }
+
+    /* ── Map ── */
+    #map-container {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      padding: 8px;
+    }
+
+    #world-map {
+      width: 100%;
+      height: 100%;
+      max-height: 100%;
+      /* keep 1400:800 ratio */
+      aspect-ratio: 1400 / 800;
+      display: block;
+    }
+
+    /* ── Bottom bar ── */
+    #bottombar {
+      flex-shrink: 0;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #share-box {
+      flex: 1;
+      min-width: 200px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #share-link {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--accent);
+      padding: 6px 10px;
+      font-size: 12px;
+      font-family: monospace;
+      outline: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    #share-link:empty { display: none; }
+
+    #copy-status {
+      font-size: 11px;
+      color: #6dbb8a;
+      white-space: nowrap;
+    }
+
+    /* ── Imgur modal ── */
+    #imgur-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+    #imgur-overlay.show { display: flex; }
+
+    #imgur-modal {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      width: 420px;
+      max-width: 90vw;
+    }
+    #imgur-modal h3 {
+      font-size: 15px;
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    #imgur-modal p {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    #imgur-modal a { color: var(--accent); }
+    #imgur-client-id {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 12px;
+      font-size: 14px;
+      font-family: monospace;
+      outline: none;
+      margin-bottom: 12px;
+    }
+    #imgur-client-id:focus { border-color: var(--accent); }
+    .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  </style>
+</head>
+<body>
+
+<!-- ══════ TOP BAR ══════ -->
+<div id="topbar">
+  <div id="input-row">
+    <input id="query-input"
+           placeholder="輸入國家或組織，以逗號分隔，例：美國,北約,台灣"
+           autocomplete="off">
+    <button class="btn btn-primary" id="gen-btn">產生地圖</button>
+    <button class="btn btn-ghost" id="clear-btn">清除</button>
+  </div>
+  <div id="preview-row">
+    <span id="status-msg"></span>
+  </div>
+</div>
+
+<!-- ══════ MAP ══════ -->
+<div id="map-container">
+  <svg id="world-map" viewBox="0 0 1400 800" preserveAspectRatio="xMidYMid meet">
+    <!-- Filled by D3 -->
+  </svg>
+</div>
+
+<!-- ══════ BOTTOM BAR ══════ -->
+<div id="bottombar">
+  <button class="btn btn-green" id="dl-btn">⬇ 下載 PNG（1400×800）</button>
+  <button class="btn btn-orange" id="copy-img-btn">📋 複製圖片到剪貼簿</button>
+  <button class="btn btn-upload" id="upload-btn">☁ 上傳取得連結</button>
+  <div id="share-box">
+    <input id="share-link" readonly placeholder="">
+    <span id="copy-status"></span>
+  </div>
+</div>
+
+
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════
+// 1. DATA: 繁體中文國家名 → ISO Numeric Code
+// ═══════════════════════════════════════════════════════════════
+const ZH_TO_ID = {
+  // 北美
+  '美國':840,'加拿大':124,'墨西哥':484,
+  '瓜地馬拉':320,'貝里斯':84,'薩爾瓦多':222,'宏都拉斯':340,
+  '尼加拉瓜':558,'哥斯大黎加':188,'巴拿馬':591,
+  '古巴':192,'牙買加':388,'海地':332,'多明尼加共和國':214,'多明尼加':214,
+  '波多黎各':630,'千里達及托巴哥':780,'千里達':780,'巴貝多':52,
+  '安地瓜及巴布達':28,'格瑞那達':308,'多米尼克':212,
+  '聖克里斯多福及尼維斯':659,'聖露西亞':662,'聖文森及格瑞那丁':670,
+  '巴哈馬':44,'蒙特塞拉特':500,
+  // 南美
+  '哥倫比亞':170,'委內瑞拉':862,'蓋亞那':328,'蘇利南':740,
+  '巴西':76,'厄瓜多':218,'祕魯':604,'秘魯':604,
+  '玻利維亞':68,'巴拉圭':600,'烏拉圭':858,'阿根廷':32,'智利':152,
+  // 歐洲
+  '冰島':352,'英國':826,'愛爾蘭':372,
+  '挪威':578,'瑞典':752,'芬蘭':246,'丹麥':208,
+  '愛沙尼亞':233,'拉脫維亞':428,'立陶宛':440,
+  '荷蘭':528,'比利時':56,'盧森堡':442,
+  '法國':250,'摩納哥':492,'安道爾':20,'西班牙':724,'葡萄牙':620,
+  '德國':276,'瑞士':756,'奧地利':40,'列支敦斯登':438,
+  '義大利':380,'意大利':380,'梵蒂岡':336,'聖馬利諾':674,
+  '希臘':300,'馬爾他':470,'賽普勒斯':196,
+  '波蘭':616,'捷克':203,'捷克共和國':203,'斯洛伐克':703,'匈牙利':348,
+  '斯洛維尼亞':705,'克羅埃西亞':191,'波士尼亞':70,
+  '塞爾維亞':688,'蒙特內哥羅':499,'北馬其頓':807,'科索沃':383,'阿爾巴尼亞':8,
+  '羅馬尼亞':642,'保加利亞':100,'摩爾多瓦':498,
+  '烏克蘭':804,'白俄羅斯':112,'俄羅斯':643,
+  // 亞洲
+  '土耳其':792,'亞塞拜然':31,'亞美尼亞':51,'喬治亞':268,
+  '哈薩克':398,'土庫曼':795,'烏茲別克':860,'吉爾吉斯':417,'塔吉克':762,
+  '阿富汗':4,'巴基斯坦':586,'印度':356,'尼泊爾':524,'不丹':64,
+  '孟加拉':50,'斯里蘭卡':144,
+  '緬甸':104,'泰國':764,'越南':704,'柬埔寨':116,'寮國':418,
+  '中國':156,'中華人民共和國':156,
+  '台灣':158,'中華民國':158,
+  '日本':392,'南韓':410,'韓國':410,'北韓':408,'蒙古':496,
+  '菲律賓':608,'馬來西亞':458,'新加坡':702,'汶萊':96,'印尼':360,'東帝汶':626,
+  '伊朗':364,'伊拉克':368,'敘利亞':760,'黎巴嫩':422,
+  '約旦':400,'以色列':376,'巴勒斯坦':275,
+  '沙烏地阿拉伯':682,'沙特阿拉伯':682,'葉門':887,'阿曼':512,
+  '阿聯酋':784,'阿拉伯聯合大公國':784,'卡達':634,'科威特':414,'巴林':48,
+  // 非洲
+  '摩洛哥':504,'阿爾及利亞':12,'突尼西亞':788,'利比亞':434,'埃及':818,
+  '茅利塔尼亞':478,'馬利':466,'布吉納法索':854,'尼日':562,'奈及利亞':566,'迦納':288,
+  '多哥':768,'貝南':204,'塞內加爾':686,'幾內亞':324,'幾內亞比索':624,
+  '甘比亞':270,'獅子山':694,'賴比瑞亞':430,'象牙海岸':384,'科特迪瓦':384,
+  '喀麥隆':120,'中非共和國':140,'查德':148,'蘇丹':729,'南蘇丹':728,
+  '衣索比亞':231,'厄利垂亞':232,'吉布地':262,'索馬利亞':706,
+  '肯亞':404,'坦尚尼亞':834,'烏干達':800,'盧安達':646,'蒲隆地':108,
+  '剛果民主共和國':180,'剛果共和國':178,'剛果':178,'加彭':266,'赤道幾內亞':226,
+  '安哥拉':24,'尚比亞':894,'馬拉威':454,'莫三比克':508,'辛巴威':716,
+  '納米比亞':516,'波札那':72,'南非':710,'賴索托':426,'史瓦帝尼':748,
+  '馬達加斯加':450,'模里西斯':480,'塞席爾':690,'葛摩':174,'維德角':132,
+  '聖多美普林西比':678,
+  // 大洋洲
+  '澳洲':36,'紐西蘭':554,'巴布亞紐幾內亞':598,
+  '斐濟':242,'索羅門群島':90,'萬那杜':548,'薩摩亞':882,'東加':776,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 2. ORGANIZATION DATA（2024 最新成員）
+// ═══════════════════════════════════════════════════════════════
+const ORGS = {
+  '北約': {
+    label: 'NATO（北約）32 國',
+    members: ['阿爾巴尼亞','比利時','保加利亞','加拿大','克羅埃西亞',
+      '捷克','丹麥','愛沙尼亞','芬蘭','法國','德國','希臘','匈牙利',
+      '冰島','義大利','拉脫維亞','立陶宛','盧森堡','蒙特內哥羅','荷蘭',
+      '北馬其頓','挪威','波蘭','葡萄牙','羅馬尼亞','斯洛伐克','斯洛維尼亞',
+      '西班牙','瑞典','土耳其','英國','美國']
+  },
+  'NATO': { ref: '北約' },
+  '歐盟': {
+    label: 'EU（歐盟）27 國',
+    members: ['奧地利','比利時','保加利亞','克羅埃西亞','賽普勒斯','捷克',
+      '丹麥','愛沙尼亞','芬蘭','法國','德國','希臘','匈牙利','愛爾蘭',
+      '義大利','拉脫維亞','立陶宛','盧森堡','馬爾他','荷蘭','波蘭',
+      '葡萄牙','羅馬尼亞','斯洛伐克','斯洛維尼亞','西班牙','瑞典']
+  },
+  'EU': { ref: '歐盟' },
+  'G7': {
+    label: 'G7',
+    members: ['加拿大','法國','德國','義大利','日本','英國','美國']
+  },
+  'G20': {
+    label: 'G20',
+    members: ['阿根廷','澳洲','巴西','加拿大','中國','法國','德國',
+      '印度','印尼','義大利','日本','墨西哥','俄羅斯','沙烏地阿拉伯',
+      '南非','南韓','土耳其','英國','美國']
+  },
+  '東協': {
+    label: 'ASEAN（東協）10 國',
+    members: ['汶萊','柬埔寨','印尼','寮國','馬來西亞','緬甸','菲律賓','新加坡','泰國','越南']
+  },
+  'ASEAN': { ref: '東協' },
+  '五眼聯盟': {
+    label: '五眼聯盟',
+    members: ['澳洲','加拿大','紐西蘭','英國','美國']
+  },
+  'QUAD': {
+    label: 'QUAD（四方安全對話）',
+    members: ['澳洲','印度','日本','美國']
+  },
+  'APEC': {
+    label: 'APEC（亞太經合組織）21 個經濟體',
+    members: ['澳洲','汶萊','加拿大','智利','中國','印尼','日本',
+      '馬來西亞','墨西哥','紐西蘭','巴布亞紐幾內亞','祕魯','菲律賓',
+      '俄羅斯','新加坡','南韓','台灣','泰國','美國','越南']
+  },
+  '加勒比共同體': {
+    label: 'CARICOM（加勒比共同體）15 國',
+    members: ['安地瓜及巴布達','巴哈馬','巴貝多','貝里斯','多米尼克',
+      '格瑞那達','蓋亞那','海地','牙買加','聖克里斯多福及尼維斯',
+      '聖露西亞','聖文森及格瑞那丁','蘇利南','千里達及托巴哥']
+  },
+  'CARICOM': { ref: '加勒比共同體' },
+  '阿拉伯聯盟': {
+    label: '阿拉伯聯盟 22 國',
+    members: ['阿爾及利亞','巴林','葛摩','吉布地','埃及','伊拉克',
+      '約旦','科威特','黎巴嫩','利比亞','茅利塔尼亞','摩洛哥',
+      '阿曼','巴勒斯坦','卡達','沙烏地阿拉伯','索馬利亞',
+      '蘇丹','敘利亞','突尼西亞','阿聯酋','葉門']
+  },
+  '非洲聯盟': {
+    label: '非洲聯盟（AU）55 國',
+    members: ['阿爾及利亞','安哥拉','貝南','波札那','布吉納法索','蒲隆地',
+      '維德角','喀麥隆','中非共和國','查德','葛摩','剛果共和國',
+      '剛果民主共和國','吉布地','埃及','赤道幾內亞','厄利垂亞','衣索比亞',
+      '加彭','甘比亞','迦納','幾內亞','幾內亞比索','肯亞','賴索托',
+      '賴比瑞亞','利比亞','馬達加斯加','馬拉威','馬利','茅利塔尼亞',
+      '模里西斯','摩洛哥','莫三比克','納米比亞','尼日','奈及利亞',
+      '盧安達','聖多美普林西比','塞內加爾','塞席爾','獅子山','索馬利亞',
+      '南非','南蘇丹','蘇丹','史瓦帝尼','坦尚尼亞','多哥',
+      '突尼西亞','烏干達','尚比亞','辛巴威']
+  },
+  'AU': { ref: '非洲聯盟' },
+  '上海合作組織': {
+    label: 'SCO（上海合作組織）10 國',
+    members: ['中國','印度','伊朗','哈薩克','吉爾吉斯','巴基斯坦',
+      '俄羅斯','塔吉克','烏茲別克','白俄羅斯']
+  },
+  'SCO': { ref: '上海合作組織' },
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 3. DOT COUNTRIES（太小無法填色，改用實心圓點）
+// ═══════════════════════════════════════════════════════════════
+// ISO numeric → [lon, lat]
+const DOT_COORDS = {
+  158:[120.97,23.7],    // 台灣
+  702:[103.82,1.35],    // 新加坡
+  376:[34.85,31.05],    // 以色列
+  442:[6.13,49.81],     // 盧森堡
+  470:[14.38,35.93],    // 馬爾他
+  462:[73.5,4.17],      // 馬爾地夫
+  48:[50.55,26.05],     // 巴林
+  634:[51.21,25.31],    // 卡達
+  414:[47.48,29.31],    // 科威特
+  275:[35.29,31.95],    // 巴勒斯坦
+  96:[114.73,4.94],     // 汶萊
+  492:[7.42,43.73],     // 摩納哥
+  336:[12.45,41.9],     // 梵蒂岡
+  674:[12.46,43.94],    // 聖馬利諾
+  438:[9.53,47.14],     // 列支敦斯登
+  196:[33.3,35.1],      // 賽普勒斯
+  388:[-76.8,18.1],     // 牙買加
+  780:[-61.22,10.65],   // 千里達及托巴哥
+  52:[-59.54,13.19],    // 巴貝多
+  332:[-72.33,18.97],   // 海地
+  214:[-69.93,18.74],   // 多明尼加共和國
+  28:[-61.8,17.1],      // 安地瓜及巴布達
+  308:[-61.68,12.12],   // 格瑞那達
+  659:[-62.68,17.33],   // 聖克里斯多福及尼維斯
+  662:[-60.98,13.9],    // 聖露西亞
+  670:[-61.2,13.25],    // 聖文森及格瑞那丁
+  212:[-61.37,15.42],   // 多米尼克
+  44:[-77.35,25.05],    // 巴哈馬
+  174:[43.36,-11.7],    // 葛摩
+  626:[125.73,-8.87],   // 東帝汶
+  132:[-24.0,15.1],     // 維德角
+  678:[6.61,0.19],      // 聖多美普林西比
+};
+const DOT_IDS = new Set(Object.keys(DOT_COORDS).map(Number));
+
+// Special centroid overrides for countries that span antimeridian or have odd shapes
+const CENTROID_OVERRIDE = {
+  643:[90,63],    // 俄羅斯
+  840:[-98,39],   // 美國
+  124:[-95,59],   // 加拿大
+  36:[134,-24],   // 澳洲
+  76:[-53,-10],   // 巴西
+  826:[-2.5,54],  // 英國
+  250:[2.2,46.5], // 法國
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 4. COLOR PALETTE
+// ═══════════════════════════════════════════════════════════════
+const PALETTE = [
+  '#E85D5D', // 珊瑚紅
+  '#5B9BD5', // 天藍
+  '#6DC46D', // 草綠
+  '#F5A623', // 橙
+  '#B07FE8', // 紫
+  '#E84393', // 粉紅
+  '#2DD4BF', // 青
+  '#FBBF24', // 金
+  '#F97316', // 深橙
+  '#34D399', // 翠綠
+  '#60A5FA', // 淡藍
+  '#A78BFA', // 淡紫
+  '#FB7185', // 玫瑰
+  '#4ADE80', // 亮綠
+  '#38BDF8', // 天空藍
+  '#E879F9', // 洋紅
+  '#FDE68A', // 淡黃
+  '#99F6E4', // 薄荷
+  '#FDA4AF', // 淺粉
+  '#86EFAC', // 淺綠
+];
+
+// ═══════════════════════════════════════════════════════════════
+// 5. STATE
+// ═══════════════════════════════════════════════════════════════
+let allFeatures = null;
+let projection, pathGen;
+let currentParsed = null; // [{label, color, ids: Set, isDot: bool[]}]
+
+const MAP_W = 1400, MAP_H = 800;
+
+// ═══════════════════════════════════════════════════════════════
+// 6. SVG MAP INIT
+// ═══════════════════════════════════════════════════════════════
+const svg = d3.select('#world-map');
+
+// Ocean background
+svg.append('rect')
+  .attr('width', MAP_W).attr('height', MAP_H)
+  .attr('fill', '#071e38');
+
+const mapGroup = svg.append('g').attr('id', 'map-group');
+
+projection = d3.geoNaturalEarth1()
+  .scale(215)
+  .translate([MAP_W / 2, MAP_H / 2 + 15]);
+pathGen = d3.geoPath().projection(projection);
+
+// Sphere
+mapGroup.append('path')
+  .datum({type:'Sphere'})
+  .attr('d', pathGen)
+  .attr('fill', '#071e38')
+  .attr('stroke', '#1a3a5c')
+  .attr('stroke-width', 1);
+
+// Graticule
+const graticule = d3.geoGraticule()();
+mapGroup.append('path')
+  .datum(graticule)
+  .attr('d', pathGen)
+  .attr('fill', 'none')
+  .attr('stroke', '#0d2c48')
+  .attr('stroke-width', 0.35);
+
+const countryGroup = mapGroup.append('g').attr('id', 'country-fills');
+const labelGroup   = mapGroup.append('g').attr('id', 'country-labels');
+const dotGroup     = mapGroup.append('g').attr('id', 'country-dots');
+
+// Static map title (top-left of map)
+svg.append('text')
+  .attr('x', 22).attr('y', 36)
+  .attr('font-size', 18)
+  .attr('font-weight', '700')
+  .attr('font-family', "'Microsoft JhengHei','PingFang TC',sans-serif")
+  .attr('fill', 'rgba(255,255,255,0.75)')
+  .attr('letter-spacing', '1')
+  .text('世界地圖・國家標註');
+
+// Legend group (bottom-left of map)
+const legendG = svg.append('g').attr('id', 'legend').attr('transform', `translate(20,${MAP_H - 20})`);
+
+// Load world data
+d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json')
+  .then(world => {
+    allFeatures = topojson.feature(world, world.objects.countries).features;
+    countryGroup.selectAll('path')
+      .data(allFeatures)
+      .enter().append('path')
+      .attr('class', 'c-path')
+      .attr('id', d => `cp-${d.id}`)
+      .attr('d', pathGen)
+      .attr('fill', '#1a2f4a')
+      .attr('stroke', 'rgba(255,255,255,0.12)')
+      .attr('stroke-width', 0.5);
+  })
+  .catch(() => setStatus('地圖資料載入失敗，請確認網路連線', false));
+
+// ═══════════════════════════════════════════════════════════════
+// 7. INPUT PARSING
+// ═══════════════════════════════════════════════════════════════
+function resolveOrg(name) {
+  let org = ORGS[name];
+  if (!org) return null;
+  if (org.ref) org = ORGS[org.ref];
+  return org;
+}
+
+function parseQuery(raw) {
+  const items = raw.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  if (!items.length) return null;
+
+  const results = [];
+  const usedIds = new Set(); // track first-assignment
+
+  items.forEach((item, i) => {
+    const color = PALETTE[i % PALETTE.length];
+    const org = resolveOrg(item);
+
+    let ids = [];
+    let label = item;
+
+    if (org) {
+      label = org.label;
+      ids = org.members.map(n => ZH_TO_ID[n]).filter(Boolean);
+    } else {
+      const id = ZH_TO_ID[item];
+      if (id !== undefined) ids = [id];
+      else return; // unknown, skip
+    }
+
+    // Filter to first-assigned only
+    const newIds = ids.filter(id => !usedIds.has(id));
+    newIds.forEach(id => usedIds.add(id));
+
+    if (ids.length > 0) {
+      results.push({ item, label, color, ids: new Set(ids), newIds: new Set(newIds) });
+    }
+  });
+
+  return results.length ? results : null;
+}
+
+// Sort items alphabetically to make cache key order-independent
+function cacheKey(raw) {
+  const items = raw.split(/[,，]/).map(s => s.trim()).filter(Boolean);
+  return items.slice().sort().join(',');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 8. RENDER MAP
+// ═══════════════════════════════════════════════════════════════
+function renderMap(parsed) {
+  if (!allFeatures) return;
+
+  // Reset fills
+  countryGroup.selectAll('.c-path').attr('fill', '#1a2f4a');
+  labelGroup.selectAll('*').remove();
+  dotGroup.selectAll('*').remove();
+  legendG.selectAll('*').remove();
+
+  if (!parsed) return;
+
+  // Assign colors (first-assignment wins, already handled in parse)
+  parsed.forEach(({ newIds, color }) => {
+    newIds.forEach(id => {
+      if (DOT_IDS.has(id)) return; // skip dots
+      const feature = allFeatures.find(f => +f.id === id);
+      if (!feature) return;
+      // Use feature.id (original string, may have leading zeros e.g. "076") to match element id
+      const sel = countryGroup.select(`#cp-${feature.id}`);
+      if (!sel.empty()) sel.attr('fill', color);
+    });
+  });
+
+  // Labels for filled countries — only draw if area is large enough
+  const LABEL_MIN_AREA = 500; // px², skip cramped small countries
+  parsed.forEach(({ newIds, color }) => {
+    newIds.forEach(id => {
+      if (DOT_IDS.has(id)) return;
+      const feature = allFeatures.find(f => +f.id === id);
+      if (!feature) return;
+
+      // Skip label if rendered area is too small (avoids European clutter)
+      let area = 0;
+      try { area = pathGen.area(feature); } catch(e) {}
+      if (area < LABEL_MIN_AREA) return;
+
+      let center;
+      if (CENTROID_OVERRIDE[id]) {
+        center = projection(CENTROID_OVERRIDE[id]);
+      } else {
+        try { center = pathGen.centroid(feature); } catch(e) {}
+      }
+      if (!center || isNaN(center[0])) return;
+
+      const name = Object.keys(ZH_TO_ID).find(k => ZH_TO_ID[k] === id);
+      if (!name) return;
+
+      // Avoid duplicate labels (same id, different aliases)
+      if (labelGroup.select(`[data-id="${id}"]`).empty()) {
+        drawLabel(labelGroup, center[0], center[1], name, id);
+      }
+    });
+  });
+
+  // Dots for small countries
+  const drawnDots = new Set();
+  parsed.forEach(({ newIds, color }) => {
+    newIds.forEach(id => {
+      if (!DOT_IDS.has(id) || drawnDots.has(id)) return;
+      const lonlat = DOT_COORDS[id];
+      if (!lonlat) return;
+      const [px, py] = projection(lonlat);
+      const name = Object.keys(ZH_TO_ID).find(k => ZH_TO_ID[k] === id);
+      drawDot(dotGroup, px, py, name || '?', color);
+      drawnDots.add(id);
+    });
+  });
+
+  // Legend
+  drawLegend(parsed);
+}
+
+function drawLabel(g, x, y, text, id) {
+  const grp = g.append('g')
+    .attr('transform', `translate(${x},${y})`)
+    .attr('data-id', id);
+
+  grp.append('text')
+    .attr('text-anchor', 'middle')
+    .attr('dominant-baseline', 'middle')
+    .attr('font-size', 11)
+    .attr('font-family', "'Microsoft JhengHei','PingFang TC',sans-serif")
+    .attr('font-weight', '700')
+    .attr('fill', '#fff')
+    .attr('stroke', 'rgba(0,0,0,0.65)')
+    .attr('stroke-width', '2.5')
+    .attr('paint-order', 'stroke')
+    .text(text);
+}
+
+function drawDot(g, x, y, text, color) {
+  const grp = g.append('g').attr('transform', `translate(${x},${y})`);
+
+  // Outer glow
+  grp.append('circle')
+    .attr('r', 7)
+    .attr('fill', color)
+    .attr('opacity', 0.25);
+
+  // Solid dot
+  grp.append('circle')
+    .attr('r', 4.5)
+    .attr('fill', color)
+    .attr('stroke', '#fff')
+    .attr('stroke-width', 1);
+
+  // Label
+  grp.append('text')
+    .attr('x', 8).attr('y', 1)
+    .attr('dominant-baseline', 'middle')
+    .attr('font-size', 10.5)
+    .attr('font-family', "'Microsoft JhengHei','PingFang TC',sans-serif")
+    .attr('font-weight', '700')
+    .attr('fill', '#fff')
+    .attr('stroke', 'rgba(0,0,0,0.7)')
+    .attr('stroke-width', '2.5')
+    .attr('paint-order', 'stroke')
+    .text(text);
+}
+
+function drawLegend(parsed) {
+  // Build legend items: each input item
+  const ITEM_H = 18;
+  const PAD = 8;
+
+  // Background rect (will size after)
+  const bg = legendG.append('rect')
+    .attr('rx', 5)
+    .attr('fill', 'rgba(6,18,38,0.78)')
+    .attr('stroke', 'rgba(255,255,255,0.1)')
+    .attr('stroke-width', 0.5);
+
+  let maxW = 0;
+  parsed.forEach(({ item, color, ids, newIds }, i) => {
+    // Use the original input term as legend label
+    // Count how many countries were newly assigned
+    const dotCount = [...newIds].filter(id => DOT_IDS.has(id)).length;
+    const fillCount = newIds.size - dotCount;
+
+    const grp = legendG.append('g')
+      .attr('transform', `translate(${PAD}, ${-(parsed.length - i) * ITEM_H - PAD + (i === parsed.length - 1 ? -2 : 0)})`);
+
+    // Swatch: circle for dot-only single countries, rect for fills
+    if (newIds.size === 1 && dotCount === 1) {
+      grp.append('circle').attr('cx', 6).attr('cy', 6).attr('r', 5)
+        .attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 0.8);
+    } else {
+      grp.append('rect').attr('width', 12).attr('height', 12).attr('rx', 2)
+        .attr('fill', color).attr('stroke', '#fff').attr('stroke-width', 0.5);
+    }
+
+    const orgObj = resolveOrg(item);
+    const labelText = orgObj ? orgObj.label : item;
+    const countText = newIds.size > 1 ? `（${newIds.size} 國）` : '';
+
+    const t = grp.append('text')
+      .attr('x', 17).attr('y', 10)
+      .attr('dominant-baseline', 'middle')
+      .attr('font-size', 11)
+      .attr('font-family', "'Microsoft JhengHei','PingFang TC',sans-serif")
+      .attr('fill', 'rgba(255,255,255,0.85)')
+      .text(labelText + countText);
+
+    try {
+      const bb = t.node().getBBox();
+      if (bb.width + 28 > maxW) maxW = bb.width + 28;
+    } catch(e) { maxW = 200; }
+  });
+
+  const totalH = parsed.length * ITEM_H + PAD * 2;
+  bg.attr('x', 0)
+    .attr('y', -(parsed.length * ITEM_H) - PAD)
+    .attr('width', maxW + PAD)
+    .attr('height', totalH);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 9. PREVIEW CHIPS
+// ═══════════════════════════════════════════════════════════════
+function updatePreview(raw) {
+  const previewRow = document.getElementById('preview-row');
+  previewRow.innerHTML = '';
+
+  if (!raw.trim()) {
+    document.getElementById('status-msg').textContent = '';
+    return;
+  }
+
+  const parsed = parseQuery(raw);
+  if (!parsed) {
+    document.getElementById('status-msg').textContent = '（輸入不認識的名稱，請確認）';
+    return;
+  }
+
+  let totalCountries = 0;
+  parsed.forEach(({ item, color, newIds }) => {
+    totalCountries += newIds.size;
+    const chip = document.createElement('span');
+    chip.className = 'preview-chip';
+    chip.innerHTML = `<span class="dot" style="background:${color}"></span>${item}`;
+    previewRow.appendChild(chip);
+  });
+
+  const status = document.getElementById('status-msg');
+  status.className = '';
+  status.textContent = `→ 共 ${totalCountries} 個國家 / 地區`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 10. CACHE
+// ═══════════════════════════════════════════════════════════════
+const CACHE_KEY_PREFIX = 'worldmap_v1_';
+
+function getCache(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function setCache(key, parsed) {
+  try {
+    // Serialize: convert Sets to arrays
+    const data = parsed.map(p => ({
+      ...p,
+      ids: [...p.ids],
+      newIds: [...p.newIds]
+    }));
+    localStorage.setItem(CACHE_KEY_PREFIX + key, JSON.stringify(data));
+  } catch {}
+}
+
+function deserializeCache(data) {
+  return data.map(p => ({
+    ...p,
+    ids: new Set(p.ids),
+    newIds: new Set(p.newIds)
+  }));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 11. GENERATE MAP (main action)
+// ═══════════════════════════════════════════════════════════════
+function generateMap() {
+  const raw = document.getElementById('query-input').value;
+  if (!raw.trim()) return;
+
+  const key = cacheKey(raw);
+  const cached = getCache(key);
+
+  if (cached) {
+    currentParsed = deserializeCache(cached);
+    renderMap(currentParsed);
+    setStatus('已使用快取 ✓', true);
+    return;
+  }
+
+  const parsed = parseQuery(raw);
+  if (!parsed) {
+    setStatus('找不到符合的國家或組織，請確認名稱', false);
+    return;
+  }
+
+  currentParsed = parsed;
+  setCache(key, parsed);
+  renderMap(parsed);
+  setStatus('', false);
+}
+
+function setStatus(msg, isCache) {
+  const el = document.getElementById('status-msg');
+  el.textContent = msg;
+  el.className = isCache ? 'cache' : '';
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 12. PNG DOWNLOAD (1400×800)
+// ═══════════════════════════════════════════════════════════════
+function downloadPNG() {
+  const btn = document.getElementById('dl-btn');
+  btn.disabled = true;
+  btn.textContent = '處理中…';
+
+  svgToPNGBlob(MAP_W, MAP_H, blob => {
+    if (!blob) {
+      btn.disabled = false;
+      btn.textContent = '⬇ 下載 PNG（1400×800）';
+      alert('PNG 輸出失敗，請嘗試截圖');
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `worldmap-${new Date().toISOString().slice(0,10)}.png`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    btn.disabled = false;
+    btn.textContent = '⬇ 下載 PNG（1400×800）';
+  });
+}
+
+function svgToPNGBlob(w, h, callback) {
+  const svgNode = document.getElementById('world-map');
+
+  const clone = svgNode.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  clone.setAttribute('width', w);
+  clone.setAttribute('height', h);
+
+  const styleEl = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+  styleEl.textContent = `text { font-family: 'Microsoft JhengHei','PingFang TC',sans-serif; }`;
+  clone.insertBefore(styleEl, clone.firstChild);
+
+  const svgStr = new XMLSerializer().serializeToString(clone);
+  const blob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  const img = new Image();
+  img.onload = () => {
+    ctx.drawImage(img, 0, 0, w, h);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(callback, 'image/png');
+  };
+  img.onerror = () => {
+    URL.revokeObjectURL(url);
+    callback(null);
+  };
+  img.src = url;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 13. COPY IMAGE TO CLIPBOARD
+// ═══════════════════════════════════════════════════════════════
+function copyImageToClipboard() {
+  const btn = document.getElementById('copy-img-btn');
+  const statusEl = document.getElementById('copy-status');
+
+  // Check browser support
+  if (!navigator.clipboard || !window.ClipboardItem) {
+    statusEl.style.color = '#ff8080';
+    statusEl.textContent = '此瀏覽器不支援，請改用 Chrome 或 Edge';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '處理中…';
+  statusEl.textContent = '';
+
+  svgToPNGBlob(MAP_W, MAP_H, async blob => {
+    if (!blob) {
+      btn.disabled = false;
+      btn.textContent = '📋 複製圖片到剪貼簿';
+      statusEl.style.color = '#ff8080';
+      statusEl.textContent = '圖片生成失敗';
+      return;
+    }
+
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      statusEl.style.color = '#6dbb8a';
+      statusEl.textContent = '✓ 圖片已複製！直接貼到 IG / Twitter / LINE 就好';
+      setTimeout(() => { statusEl.textContent = ''; }, 5000);
+    } catch (err) {
+      // Fallback: trigger download instead
+      statusEl.style.color = '#ffb347';
+      statusEl.textContent = '剪貼簿權限不足，改為下載檔案';
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `worldmap-${new Date().toISOString().slice(0,10)}.png`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }
+
+    btn.disabled = false;
+    btn.textContent = '📋 複製圖片到剪貼簿';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 14. UPLOAD TO CATBOX.MOE（匿名，不需帳號）
+// ═══════════════════════════════════════════════════════════════
+function startImgurUpload() {
+  const btn = document.getElementById('upload-btn');
+  const statusEl = document.getElementById('copy-status');
+
+  btn.disabled = true;
+  btn.textContent = '上傳中…';
+  statusEl.textContent = '';
+  document.getElementById('share-link').value = '';
+
+  svgToPNGBlob(MAP_W, MAP_H, async blob => {
+    if (!blob) {
+      btn.disabled = false;
+      btn.textContent = '☁ 上傳取得連結';
+      statusEl.style.color = '#ff8080';
+      statusEl.textContent = 'PNG 生成失敗';
+      return;
+    }
+
+    try {
+      const formData = new FormData();
+      formData.append('reqtype', 'fileupload');
+      formData.append('fileToUpload', blob, 'worldmap.png');
+
+      const res = await fetch('https://catbox.moe/user/api.php', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const url = (await res.text()).trim();
+
+      if (!url.startsWith('https://')) throw new Error('回傳格式不對：' + url);
+
+      const shareInput = document.getElementById('share-link');
+      shareInput.value = url;
+
+      navigator.clipboard.writeText(url).then(() => {
+        statusEl.style.color = '#6dbb8a';
+        statusEl.textContent = '✓ 連結已複製到剪貼簿';
+      }).catch(() => {
+        statusEl.style.color = '#ffb347';
+        statusEl.textContent = '↑ 點選上方連結即可複製';
+      });
+
+    } catch (err) {
+      statusEl.style.color = '#ff8080';
+      statusEl.textContent = `上傳失敗（${err.message}），請改用下載`;
+    }
+
+    btn.disabled = false;
+    btn.textContent = '☁ 上傳取得連結';
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 14. EVENT LISTENERS
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('gen-btn').addEventListener('click', generateMap);
+document.getElementById('dl-btn').addEventListener('click', downloadPNG);
+document.getElementById('copy-img-btn').addEventListener('click', copyImageToClipboard);
+document.getElementById('upload-btn').addEventListener('click', startImgurUpload);
+
+document.getElementById('query-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') generateMap();
+});
+
+document.getElementById('query-input').addEventListener('input', e => {
+  updatePreview(e.target.value);
+});
+
+document.getElementById('clear-btn').addEventListener('click', () => {
+  document.getElementById('query-input').value = '';
+  document.getElementById('preview-row').innerHTML = '';
+  document.getElementById('status-msg').textContent = '';
+  document.getElementById('share-link').value = '';
+  document.getElementById('copy-status').textContent = '';
+  currentParsed = null;
+  if (allFeatures) renderMap(null);
+});
+
+
+// Click share link to copy
+document.getElementById('share-link').addEventListener('click', function() {
+  if (this.value) {
+    navigator.clipboard.writeText(this.value).then(() => {
+      document.getElementById('copy-status').textContent = '✓ 已複製';
+    });
+  }
+});
+</script>
+</body>
+</html>

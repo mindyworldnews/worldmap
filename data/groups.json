@@ -1,0 +1,57 @@
+{
+  "NATO": {
+    "zh": ["北約", "北大西洋公約組織"],
+    "en": ["NATO", "North Atlantic Treaty Organization"],
+    "members": ["ALB","BEL","BGR","CAN","HRV","CZE","DNK","EST","FIN","FRA","DEU","GRC","HUN","ISL","ITA","LVA","LTU","LUX","MNE","NLD","MKD","NOR","POL","PRT","ROU","SVK","SVN","ESP","SWE","TUR","GBR","USA"]
+  },
+  "EU": {
+    "zh": ["歐盟", "歐洲聯盟"],
+    "en": ["EU", "European Union"],
+    "members": ["AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","FRA","DEU","GRC","HUN","IRL","ITA","LVA","LTU","LUX","MLT","NLD","POL","PRT","ROU","SVK","SVN","ESP","SWE"]
+  },
+  "QUAD": {
+    "zh": ["四方安全對話", "四方聯盟"],
+    "en": ["QUAD", "Quadrilateral Security Dialogue"],
+    "members": ["USA","JPN","AUS","IND"]
+  },
+  "APEC": {
+    "zh": ["亞太經合組織", "亞太經濟合作"],
+    "en": ["APEC", "Asia-Pacific Economic Cooperation"],
+    "members": ["AUS","BRN","CAN","CHL","CHN","HKG","IDN","JPN","MYS","MEX","NZL","PNG","PER","PHL","RUS","SGP","KOR","TWN","THA","USA","VNM"]
+  },
+  "G7": {
+    "zh": ["七大工業國", "G7"],
+    "en": ["G7", "Group of Seven"],
+    "members": ["CAN","FRA","DEU","ITA","JPN","GBR","USA"]
+  },
+  "G20": {
+    "zh": ["二十國集團", "G20"],
+    "en": ["G20", "Group of Twenty"],
+    "members": ["ARG","AUS","BRA","CAN","CHN","FRA","DEU","IND","IDN","ITA","JPN","MEX","RUS","SAU","ZAF","KOR","TUR","GBR","USA","AUT","BEL","BGR","HRV","CYP","CZE","DNK","EST","FIN","GRC","HUN","IRL","LVA","LTU","LUX","MLT","NLD","POL","PRT","ROU","SVK","SVN","ESP","SWE"]
+  },
+  "ASEAN": {
+    "zh": ["東南亞國協", "東協"],
+    "en": ["ASEAN", "Association of Southeast Asian Nations"],
+    "members": ["BRN","KHM","IDN","LAO","MYS","MMR","PHL","SGP","THA","VNM"]
+  },
+  "SCO": {
+    "zh": ["上合組織", "上海合作組織"],
+    "en": ["SCO", "Shanghai Cooperation Organization"],
+    "members": ["CHN","IND","IRN","KAZ","KGZ","PAK","RUS","TJK","UZB"]
+  },
+  "BRICS": {
+    "zh": ["金磚國家", "金磚"],
+    "en": ["BRICS"],
+    "members": ["BRA","RUS","IND","CHN","ZAF","EGY","ETH","IRN","ARE"]
+  },
+  "FIVEEYES": {
+    "zh": ["五眼聯盟"],
+    "en": ["Five Eyes", "FVEY"],
+    "members": ["AUS","CAN","NZL","GBR","USA"]
+  },
+  "AUKUS": {
+    "zh": ["澳英美聯盟", "AUKUS"],
+    "en": ["AUKUS"],
+    "members": ["AUS","GBR","USA"]
+  }
+}

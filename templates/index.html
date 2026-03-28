@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>世界地圖國家標註</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #1a1a2e;
+      color: #e0e0f0;
+      font-family: 'Noto Sans TC', 'Microsoft JhengHei', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      color: #fff;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #8890bb;
+      margin-bottom: 36px;
+    }
+
+    .card {
+      background: #22244a;
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 680px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    }
+
+    label {
+      font-size: 0.85rem;
+      color: #8890bb;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+    }
+
+    input[type="text"] {
+      flex: 1;
+      background: #1a1a2e;
+      border: 1.5px solid #3d4f8a;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 1rem;
+      padding: 12px 16px;
+      outline: none;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: #5DA8E8;
+    }
+
+    input[type="text"]::placeholder {
+      color: #4a5070;
+    }
+
+    button {
+      background: #5DA8E8;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 12px 24px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s, transform 0.1s;
+      white-space: nowrap;
+    }
+
+    button:hover { background: #3d8fd8; }
+    button:active { transform: scale(0.97); }
+    button:disabled { background: #3d4f8a; cursor: not-allowed; }
+
+    .hint {
+      font-size: 0.78rem;
+      color: #5a628a;
+      margin-top: 10px;
+    }
+
+    .hint span {
+      color: #5DA8E8;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    .status {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      min-height: 24px;
+      color: #8890bb;
+    }
+
+    .status.error { color: #E85D5D; }
+    .status.success { color: #5DE88A; }
+
+    .result {
+      margin-top: 20px;
+      display: none;
+    }
+
+    .result img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1.5px solid #3d4f8a;
+    }
+
+    .url-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      background: #1a1a2e;
+      border-radius: 8px;
+      padding: 10px 14px;
+      border: 1px solid #3d4f8a;
+    }
+
+    .url-text {
+      flex: 1;
+      font-size: 0.82rem;
+      color: #5DA8E8;
+      word-break: break-all;
+      text-decoration: none;
+    }
+
+    .url-text:hover { text-decoration: underline; }
+
+    .copy-btn {
+      background: #2d3561;
+      font-size: 0.8rem;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .copy-btn:hover { background: #3d4f8a; }
+
+    .tag-cached {
+      display: inline-block;
+      background: #2d6140;
+      color: #5DE88A;
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 20px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    .countries-row {
+      margin-top: 10px;
+      font-size: 0.8rem;
+      color: #6070a0;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid #3d4f8a;
+      border-top-color: #5DA8E8;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <h1>世界地圖國家標註</h1>
+  <p class="subtitle">輸入國家名稱，自動生成地圖圖片</p>
+
+  <div class="card">
+    <label>輸入國家（用逗號分隔，支援中文、英文、縮寫、組織名稱）</label>
+    <div class="input-row">
+      <input type="text" id="input" placeholder="例：美國, 中國, 台灣 或 NATO" autofocus>
+      <button id="btn" onclick="generate()">生成地圖</button>
+    </div>
+    <p class="hint">
+      支援群組：<span onclick="fillGroup('NATO')">北約</span>、
+      <span onclick="fillGroup('EU')">歐盟</span>、
+      <span onclick="fillGroup('QUAD')">QUAD</span>、
+      <span onclick="fillGroup('APEC')">APEC</span>、
+      <span onclick="fillGroup('G7')">G7</span>、
+      <span onclick="fillGroup('G20')">G20</span>、
+      <span onclick="fillGroup('ASEAN')">東協</span>、
+      <span onclick="fillGroup('BRICS')">金磚</span>
+    </p>
+
+    <div class="status" id="status"></div>
+
+    <div class="result" id="result">
+      <img id="map-img" src="" alt="世界地圖">
+      <div class="countries-row" id="countries-row"></div>
+      <div class="url-row">
+        <a class="url-text" id="url-link" href="#" target="_blank"></a>
+        <button class="copy-btn" onclick="copyUrl()">複製連結</button>
+        <button class="copy-btn" onclick="downloadImg()" style="background:#2d6140;">下載圖片</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById('input');
+
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') generate();
+    });
+
+    function fillGroup(name) {
+      input.value = name;
+      input.focus();
+    }
+
+    async function generate() {
+      const raw = input.value.trim();
+      if (!raw) return;
+
+      const btn = document.getElementById('btn');
+      const status = document.getElementById('status');
+      const result = document.getElementById('result');
+
+      btn.disabled = true;
+      result.style.display = 'none';
+      status.className = 'status';
+      status.innerHTML = '<span class="spinner"></span>生成中，請稍候…';
+
+      try {
+        const resp = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ countries: raw })
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+          status.className = 'status error';
+          status.textContent = data.error || '發生錯誤';
+          return;
+        }
+
+        const cachedTag = data.cached ? '<span class="tag-cached">快取</span>' : '';
+        status.className = 'status success';
+        status.innerHTML = `地圖已生成 ${cachedTag}`;
+
+        document.getElementById('map-img').src = data.url;
+        document.getElementById('url-link').href = data.url;
+        document.getElementById('url-link').textContent = data.url;
+        document.getElementById('countries-row').textContent =
+          `標註國家（${data.countries.length}個）：${data.countries.join(', ')}`;
+
+        result.style.display = 'block';
+
+      } catch (e) {
+        status.className = 'status error';
+        status.textContent = '連線失敗，請確認伺服器是否運行';
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function copyUrl() {
+      const url = document.getElementById('url-link').href;
+      navigator.clipboard.writeText(url).then(() => {
+        const btn = document.querySelector('.copy-btn');
+        btn.textContent = '已複製！';
+        setTimeout(() => btn.textContent = '複製連結', 1500);
+      });
+    }
+
+    function downloadImg() {
+      const url = document.getElementById('url-link').href;
+      const countries = document.getElementById('countries-row').textContent;
+      const filename = 'worldmap_' + Date.now() + '.png';
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.target = '_blank';
+      a.click();
+    }
+  </script>
+</body>
+</html>
