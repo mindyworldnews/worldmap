@@ -1006,8 +1006,11 @@ function copyImageToClipboard() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 14. UPLOAD TO CATBOX.MOE（匿名，不需帳號）
+// 14. UPLOAD TO CLOUDINARY（unsigned）
 // ═══════════════════════════════════════════════════════════════
+const CLOUDINARY_CLOUD = 'dufqjyq9w';
+const CLOUDINARY_PRESET = 'worldmap';
+
 function startImgurUpload() {
   const btn = document.getElementById('upload-btn');
   const statusEl = document.getElementById('copy-status');
@@ -1028,18 +1031,19 @@ function startImgurUpload() {
 
     try {
       const formData = new FormData();
-      formData.append('reqtype', 'fileupload');
-      formData.append('fileToUpload', blob, 'worldmap.png');
+      formData.append('file', blob, 'worldmap.png');
+      formData.append('upload_preset', CLOUDINARY_PRESET);
 
-      const res = await fetch('https://catbox.moe/user/api.php', {
+      const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
         method: 'POST',
         body: formData
       });
 
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const url = (await res.text()).trim();
+      const data = await res.json();
+      const url = data.secure_url;
 
-      if (!url.startsWith('https://')) throw new Error('回傳格式不對：' + url);
+      if (!url || !url.startsWith('https://')) throw new Error('回傳格式不對');
 
       const shareInput = document.getElementById('share-link');
       shareInput.value = url;
